@@ -1,0 +1,9 @@
+{
+  "actorSpecification": 1,
+  "environmentVariables": {
+    "ANTHROPIC_API_KEY": ""
+  },
+  "name": "ui-generator",
+  "version": "1.0",
+  "buildTag": "latest"
+}

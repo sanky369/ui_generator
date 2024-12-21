@@ -211,7 +211,7 @@ class AIService:
         try:
             response = await anthropic_client.messages.create(
                 model="claude-3-5-sonnet-latest",
-                max_tokens=8192,
+                max_tokens=6000,
                 system=system_prompt,
                 messages=messages
             )
@@ -239,11 +239,11 @@ class AIService:
                     
                     # Insert the cleaned code into the template
                     preview_html = template.replace("// Generated state declarations will be inserted here", state_code)
-                    preview_html = preview_html.replace("{/* Generated UI code will be inserted here */}", f"return {jsx_code}")
+                    preview_html = preview_html.replace("{/* Generated UI code will be inserted here */}", jsx_code.rstrip(';'))
                 else:
                     # If there's no return statement, assume it's all JSX
                     cleaned_code = AIService._clean_react_code(generated_code.strip())
-                    preview_html = template.replace("{/* Generated UI code will be inserted here */}", f"return {cleaned_code}")
+                    preview_html = template.replace("{/* Generated UI code will be inserted here */}", cleaned_code.rstrip(';'))
             else:
                 # Insert the generated HTML code into the div container
                 preview_html = template.replace("<!-- Your HTML code will be inserted here -->", generated_code.strip())
@@ -272,8 +272,11 @@ class AIService:
         code = re.sub(r'let \w+Component\s*=\s*\(\)\s*=>\s*{', '', code)
         code = re.sub(r'const \w+Component\s*=\s*\(\)\s*=>\s*{', '', code)
         
-        # Remove any trailing whitespace or semicolons
-        code = code.strip().rstrip(';')
+        # Remove trailing whitespace and add proper semicolons
+        code = code.strip().rstrip(';').rstrip() + ';'
+        
+        # Remove any empty lines at the end
+        code = re.sub(r'\s+$', '', code)
         
         return code
 
@@ -335,8 +338,7 @@ return (
     @staticmethod
     def _get_react_template():
         """Get the React template using development build with JSX support"""
-        return '''
-<!DOCTYPE html>
+        return '''<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -348,7 +350,7 @@ return (
             theme: {
                 extend: {}
             }
-        }
+        };
     </script>
 </head>
 <body>
@@ -391,5 +393,4 @@ return (
         );
     </script>
 </body>
-</html>
-'''
+</html>'''

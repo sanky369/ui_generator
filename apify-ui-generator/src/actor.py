@@ -4,6 +4,8 @@ import asyncio
 import logging
 from typing import Dict, Any
 from anthropic import AsyncAnthropic
+import os
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -98,48 +100,37 @@ async def main():
     async with Actor:
         # Get input
         actor_input = await Actor.get_input() or {}
-        
-        prompt = actor_input.get('prompt')
-        if not prompt:
-            raise ValueError("No prompt provided in input")
-            
-        api_key = actor_input.get('claude_api_key')
-        if not api_key:
-            raise ValueError("No Claude API key provided")
-            
+        prompt = actor_input.get('prompt', 'landing page of a health tracker app')
+        claude_api_key = actor_input.get('claude_api_key', os.getenv('ANTHROPIC_API_KEY'))
         style_preferences = actor_input.get('style_preferences', {})
-        
-        # Initialize generator
-        generator = UIGenerator(api_key)
-        
+
+        # Log the start of generation
+        logging.info(f"Generating UI for prompt: {prompt}")
+
         try:
-            # Generate UI
-            logger.info(f"Generating UI for prompt: {prompt}")
-            result = await generator.generate_ui(prompt, style_preferences)
+            # Initialize the UI generator
+            generator = UIGenerator(claude_api_key)
             
-            # Save to dataset
+            # Generate the UI
+            ui_code = await generator.generate_ui(prompt, style_preferences)
+            
+            # Push data to dataset
             await Actor.push_data({
-                'html': result,
                 'prompt': prompt,
-                'success': True
+                'generated_code': ui_code,
+                'timestamp': datetime.now().isoformat()
             })
             
-            # Store in key-value store for caching
-            await Actor.get_value_store().set('last_generated_ui', {
-                'html': result,
+            # Store the last generated UI in key-value store
+            kvs = await Actor.open_key_value_store()
+            await kvs.set_value('last_generated_ui', {
                 'prompt': prompt,
-                'timestamp': Actor.get_env().get('ACTOR_STARTED_AT')
+                'code': ui_code,
+                'timestamp': datetime.now().isoformat()
             })
-            
-            logger.info("Successfully generated and stored UI")
-            
+
         except Exception as e:
-            logger.error(f"Failed to generate UI: {str(e)}")
-            await Actor.push_data({
-                'error': str(e),
-                'prompt': prompt,
-                'success': False
-            })
+            logging.error(f"Failed to generate UI: {str(e)}")
             raise
 
 if __name__ == "__main__":
