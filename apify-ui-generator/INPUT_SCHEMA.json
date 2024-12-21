@@ -1,0 +1,28 @@
+{
+    "title": "UI Generator Input",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "prompt": {
+            "title": "App Idea",
+            "type": "string",
+            "description": "Description of the UI you want to generate",
+            "editor": "textarea"
+        },
+        "claude_api_key": {
+            "title": "Claude API Key",
+            "type": "string",
+            "description": "Your Anthropic Claude API key",
+            "editor": "textfield",
+            "isSecret": true
+        },
+        "style_preferences": {
+            "title": "Style Preferences",
+            "type": "object",
+            "description": "Optional styling preferences for the UI",
+            "default": {},
+            "editor": "json"
+        }
+    },
+    "required": ["prompt", "claude_api_key"]
+}

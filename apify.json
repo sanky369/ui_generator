@@ -1,0 +1,10 @@
+{
+    "name": "ui-generator",
+    "version": "1.0.0",
+    "buildTag": "latest",
+    "env": {
+        "ANTHROPIC_API_KEY": "your_key_here"
+    },
+    "title": "UI Generator",
+    "description": "Generate beautiful UI designs from text descriptions using Claude AI"
+}

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Generator Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        #preview {
+            border: none;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <!-- Left Sidebar -->
+    <div class="w-full md:w-[400px] lg:w-[480px] bg-white dark:bg-gray-800 border-b md:border-r border-gray-200 dark:border-gray-700 p-6 md:p-8 overflow-y-auto">
+        <div class="max-w-lg mx-auto md:max-w-none">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">UI Generator</h1>
+                <button 
+                    onclick="toggleDarkMode()" 
+                    class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    aria-label="Toggle dark mode">
+                    <svg class="w-5 h-5 hidden dark:block text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+                    </svg>
+                    <svg class="w-5 h-5 block dark:hidden text-gray-900" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <!-- Tech Stack Selector -->
+                <div>
+                    <label for="techStack" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Choose Tech Stack</label>
+                    <select id="techStack" class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="react-tailwind">React + Tailwind CSS</option>
+                        <option value="html-tailwind">HTML + Tailwind CSS</option>
+                        <option value="html-bootstrap">HTML + Bootstrap 5</option>
+                        <option value="html-material">HTML + Material UI</option>
+                    </select>
+                </div>
+
+                <!-- Prompt Input -->
+                <div>
+                    <label for="prompt" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Enter your app idea:</label>
+                    <textarea 
+                        id="prompt" 
+                        class="w-full h-40 px-4 py-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-base"
+                        placeholder="Example: Create a modern login page with email and password inputs, a login button, and a company logo"></textarea>
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex justify-center gap-4">
+                    <button 
+                        onclick="generateUI()" 
+                        class="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors dark:focus:ring-offset-gray-800">
+                        Generate UI
+                    </button>
+                    <button 
+                        id="downloadBtn" 
+                        class="w-full bg-green-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 hidden dark:focus:ring-offset-gray-800">
+                        Download Code
+                    </button>
+                    <button 
+                        id="downloadImageBtn" 
+                        class="w-full bg-purple-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 hidden dark:focus:ring-offset-gray-800">
+                        Download Image
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Preview Area -->
+    <div class="flex-1 relative bg-white dark:bg-gray-800">
+        <div class="absolute inset-0">
+            <iframe id="preview" sandbox="allow-scripts allow-same-origin" class="w-full h-full"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // Dark mode handling
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+        }
+
+        // Check for saved dark mode preference
+        if (localStorage.getItem('darkMode') === 'true' || 
+            (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+
+        // Define blank state HTML
+        const blankState = `
+            <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width,initial-scale=1">
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                </head>
+                <body class="bg-white dark:bg-gray-800">
+                    <div class="flex h-screen items-center justify-center p-8">
+                        <div class="max-w-sm mx-auto text-center text-gray-500 dark:text-gray-400">
+                            <p>Enter your app idea and click Generate UI</p>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        `;
+
+        // Function to reset iframe to blank state
+        function resetPreview() {
+            const preview = document.getElementById('preview');
+            preview.srcdoc = blankState;
+        }
+
+        // Reset to blank state on page load
+        window.addEventListener('load', resetPreview);
+
+        let currentDesignId = null;
+
+        async function generateUI() {
+            try {
+                const prompt = document.getElementById('prompt').value;
+                const techStack = document.getElementById('techStack').value;
+                const preview = document.getElementById('preview');
+                
+                if (!prompt.trim()) {
+                    preview.srcdoc = `
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <script src="https://cdn.tailwindcss.com"><\/script>
+                        </head>
+                        <body class="bg-white dark:bg-gray-800">
+                            <div class="flex h-screen items-center justify-center p-8">
+                                <div class="max-w-sm mx-auto text-center">
+                                    <p class="text-red-600 dark:text-red-400 font-medium">Please enter an app idea first</p>
+                                </div>
+                            </div>
+                        </body>
+                    </html>`;
+                    return;
+                }
+                
+                try {
+                    // Show loading state
+                    preview.srcdoc = `
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <script src="https://cdn.tailwindcss.com"><\/script>
+                        </head>
+                        <body class="bg-white dark:bg-gray-800">
+                            <div class="flex h-screen items-center justify-center p-8">
+                                <div class="text-center">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3"></div>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Generating your UI...</p>
+                                </div>
+                            </div>
+                        </body>
+                    </html>`;
+                    
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            prompt: prompt,
+                            tech_stack: techStack,
+                            style_preferences: {}
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || 'Failed to generate UI');
+                    }
+                    
+                    const data = await response.json();
+                    currentDesignId = data.design_id;
+                    preview.srcdoc = data.html;
+                    document.getElementById('downloadBtn').classList.remove('hidden');
+                    document.getElementById('downloadImageBtn').classList.remove('hidden');
+                    
+                } catch (error) {
+                    console.error('Error:', error);
+                    preview.srcdoc = `
+                    <html>
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width,initial-scale=1">
+                            <script src="https://cdn.tailwindcss.com"><\/script>
+                        </head>
+                        <body class="bg-white dark:bg-gray-800">
+                            <div class="flex h-screen items-center justify-center p-8">
+                                <div class="max-w-sm mx-auto text-center">
+                                    <svg class="w-8 h-8 mx-auto mb-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <p class="text-red-600 dark:text-red-400 font-medium mb-1">Error</p>
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">${error.message}</p>
+                                </div>
+                            </div>
+                        </body>
+                    </html>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        document.getElementById('downloadBtn').addEventListener('click', async () => {
+            if (!currentDesignId) return;
+            
+            try {
+                window.location.href = `/api/download/${currentDesignId}`;
+            } catch (error) {
+                const preview = document.getElementById('preview');
+                preview.srcdoc = `
+                <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width,initial-scale=1">
+                        <script src="https://cdn.tailwindcss.com"><\/script>
+                    </head>
+                    <body class="bg-white dark:bg-gray-800">
+                        <div class="flex h-screen items-center justify-center p-8">
+                            <div class="max-w-sm mx-auto text-center">
+                                <svg class="w-8 h-8 mx-auto mb-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-red-600 dark:text-red-400 font-medium mb-1">Error</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Failed to download code</p>
+                            </div>
+                        </div>
+                    </body>
+                </html>`;
+            }
+        });
+
+        // Add download image functionality
+        document.getElementById('downloadImageBtn').addEventListener('click', async () => {
+            try {
+                const iframe = document.getElementById('preview');
+                
+                // Add html2canvas script to iframe
+                const html2canvasScript = document.createElement('script');
+                html2canvasScript.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+                
+                iframe.contentDocument.head.appendChild(html2canvasScript);
+                
+                // Wait for script to load and then capture
+                html2canvasScript.onload = async () => {
+                    try {
+                        // Add necessary styles to ensure proper capture
+                        const styleEl = document.createElement('style');
+                        styleEl.textContent = `
+                            body { 
+                                width: 100% !important;
+                                height: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                            }
+                        `;
+                        iframe.contentDocument.head.appendChild(styleEl);
+                        
+                        // Execute html2canvas inside iframe context
+                        const script = document.createElement('script');
+                        script.textContent = `
+                            html2canvas(document.body, {
+                                allowTaint: true,
+                                useCORS: true,
+                                scale: 2,
+                                backgroundColor: null,
+                                logging: false,
+                                width: window.innerWidth,
+                                height: window.innerHeight
+                            }).then(canvas => {
+                                const image = canvas.toDataURL('image/png');
+                                window.parent.postMessage({ type: 'screenshot', image }, '*');
+                            });
+                        `;
+                        iframe.contentDocument.body.appendChild(script);
+                    } catch (error) {
+                        console.error('Error in capture:', error);
+                        alert('Failed to capture image');
+                    }
+                };
+            } catch (error) {
+                console.error('Error setting up capture:', error);
+                alert('Failed to set up image capture');
+            }
+        });
+
+        // Listen for the screenshot message from iframe
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'screenshot') {
+                const link = document.createElement('a');
+                link.href = event.data.image;
+                link.download = 'ui-design.png';
+                link.click();
+            }
+        });
+    </script>
+</body>
+</html>

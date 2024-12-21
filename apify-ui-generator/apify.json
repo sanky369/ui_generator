@@ -1,0 +1,13 @@
+{
+    "name": "ui-generator",
+    "version": "1.0.0",
+    "buildTag": "latest",
+    "env": {
+        "ANTHROPIC_API_KEY": ""
+    },
+    "title": "UI Generator",
+    "description": "Generate beautiful UI designs from text descriptions using Claude AI",
+    "storageDirectory": "./storage",
+    "minMemoryMbytes": 256,
+    "defaultTimeoutSecs": 300
+}
