@@ -1,11 +1,13 @@
-from apify_client import ApifyClient
 from apify import Actor
-import asyncio
+import os
 import logging
+import asyncio
+from datetime import datetime
 from typing import Dict, Any
 from anthropic import AsyncAnthropic
-import os
-from datetime import datetime
+from playwright.async_api import async_playwright
+import tempfile
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,85 +18,114 @@ class UIGenerator:
         self.client = AsyncAnthropic(api_key=api_key)
         
     async def generate_ui(self, prompt: str, style_preferences: Dict[str, Any] = None) -> str:
-        """Generate UI design using Anthropic's Claude."""
+        """Generate UI code based on the prompt"""
         try:
-            system_prompt = """You are an expert UI/UX designer specializing in creating beautiful, modern web interfaces. 
-            Your task is to generate pixel-perfect, production-ready frontend code taking inspiration from thousands of UI templates you are trained on.
+            # Create the system prompt
+            system_prompt = """You are an expert UI developer specializing in modern web development.
+            Generate clean, modern, and responsive HTML code based on the user's requirements.
+            Focus on creating a beautiful and intuitive user interface.
             
-            Guidelines for the UI:
-            1. Visual Design:
-               - Use a clean, modern aesthetic with proper spacing and typography
-               - Implement a cohesive color scheme that enhances usability
-               - Include subtle animations and transitions for better UX
-               - Add meaningful icons and visual elements where appropriate
-               - Ensure proper contrast ratios for accessibility
-
-            2. Layout & Structure:
-               - Create a responsive design that works on all devices
-               - Use a logical visual hierarchy
-               - Implement proper grid systems and spacing
-               - Include a navigation system if needed
-               - Add a footer with relevant links
-
-            3. Components & Interactivity:
-               - Include form validation with helpful error messages
-               - Add loading states and success/error feedback
-               - Implement hover states and focus indicators
-               - Use micro-interactions to enhance UX
-               - Include tooltips or help text where needed
-
-            4. Technical Requirements:
-               - Use semantic HTML5 elements
-               - Implement Tailwind CSS for styling
-               - Add necessary JavaScript for interactivity
-               - Ensure WCAG 2.1 accessibility compliance
-               - Include proper meta tags and SEO elements
-
-            IMPORTANT: Return ONLY the complete, production-ready HTML code with embedded Tailwind CSS and JavaScript. Do not include any explanations."""
-
+            Rules:
+            - Use semantic HTML5 elements
+            - Follow Tailwind CSS best practices
+            - Make the UI fully responsive
+            - Add proper ARIA attributes for accessibility
+            - Use proper loading states and error handling
+            - Add relevant unsplash images wherever needed or else have a placeholder
+            """
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": f"Create a UI for the following app idea: {prompt}"
+                }
+            ]
+            
+            # Add any style preferences to the prompt
+            if style_preferences:
+                style_prompt = "Please incorporate these style preferences:\n"
+                for key, value in style_preferences.items():
+                    style_prompt += f"- {key}: {value}\n"
+                messages.append({
+                    "role": "user",
+                    "content": style_prompt
+                })
+            
+            # Generate the UI code
             response = await self.client.messages.create(
                 model="claude-3-5-sonnet-latest",
-                max_tokens=8192,
+                max_tokens=6000,
                 temperature=0.7,
                 system=system_prompt,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": f"Create a modern, professional UI for: {prompt}. Focus on creating a polished, production-ready interface that follows current design trends and best practices."
-                    }
-                ]
+                messages=messages
             )
-
-            # Extract the generated HTML
-            if hasattr(response, 'content'):
-                content = response.content
-            else:
-                content = response['content']
-
-            if isinstance(content, list):
-                generated_html = content[0].text.strip()
-            else:
-                generated_html = content.strip()
             
-            # Ensure proper HTML structure
-            if not generated_html.lower().startswith('<!doctype html'):
-                generated_html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body>
-{generated_html}
-</body>
-</html>'''
-
-            return generated_html
-
+            generated_code = response.content[0].text
+            
+            # Extract the code from markdown if present
+            if "```" in generated_code:
+                generated_code = generated_code.split("```")[1]
+                if generated_code.startswith("html"):
+                    generated_code = generated_code[4:]
+                generated_code = generated_code.strip()
+            
+            return generated_code
+            
         except Exception as e:
-            logger.error(f"Error generating UI: {str(e)}")
+            logger.error(f"Failed to generate UI: {str(e)}")
             raise
+
+    async def capture_preview(self, html_code: str) -> bytes:
+        """Capture a screenshot of the generated UI"""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(viewport={'width': 1920, 'height': 1080})
+            
+            # Create a temporary HTML file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False) as f:
+                f.write(f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <script src="https://cdn.tailwindcss.com"></script>
+                </head>
+                <body>
+                    {html_code}
+                </body>
+                </html>
+                """)
+                temp_path = f.name
+            
+            try:
+                # Load the page and wait for network idle
+                await page.goto(f"file://{temp_path}")
+                await page.wait_for_load_state("networkidle")
+                
+                # Get full page height
+                page_height = await page.evaluate("""
+                    Math.max(
+                        document.documentElement.scrollHeight,
+                        document.documentElement.offsetHeight,
+                        document.documentElement.clientHeight
+                    )
+                """)
+                
+                # Set viewport to full page height
+                await page.set_viewport_size({"width": 1920, "height": page_height})
+                
+                # Take screenshot
+                screenshot = await page.screenshot(
+                    full_page=True,
+                    type="png"
+                )
+                
+                return screenshot
+                
+            finally:
+                await browser.close()
+                os.unlink(temp_path)
 
 async def main():
     async with Actor:
@@ -114,18 +145,58 @@ async def main():
             # Generate the UI
             ui_code = await generator.generate_ui(prompt, style_preferences)
             
-            # Push data to dataset
+            # Capture preview image
+            preview_image = await generator.capture_preview(ui_code)
+            
+            # Get key-value store
+            kvs = await Actor.open_key_value_store()
+            
+            # Save screenshot to key-value store
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            screenshot_key = f"preview_image_{timestamp}.png"
+            
+            logging.info(f"Saving screenshot with key: {screenshot_key}")
+            
+            # Store the image directly
+            await kvs.set_value(
+                screenshot_key,
+                preview_image,
+                content_type="image/png"
+            )
+            
+            # Get the store ID from environment variable
+            store_id = os.environ.get('APIFY_DEFAULT_KEY_VALUE_STORE_ID')
+            
+            if store_id:
+                # Construct the URL using the store ID
+                screenshot_url = f"https://api.apify.com/v2/key-value-stores/{store_id}/records/{screenshot_key}?disableRedirect=true"
+                logging.info(f"Screenshot URL: {screenshot_url}")
+            else:
+                # Fallback if store ID is not available
+                screenshot_url = None
+                logging.warning("Could not get key-value store ID from environment")
+            
+            # Push data to dataset with screenshot URL
             await Actor.push_data({
                 'prompt': prompt,
                 'generated_code': ui_code,
+                'preview_image_url': screenshot_url,
                 'timestamp': datetime.now().isoformat()
             })
             
-            # Store the last generated UI in key-value store
-            kvs = await Actor.open_key_value_store()
+            # Store the last generated UI and preview in key-value store
             await kvs.set_value('last_generated_ui', {
                 'prompt': prompt,
                 'code': ui_code,
+                'preview_image_url': screenshot_url,
+                'timestamp': datetime.now().isoformat()
+            })
+
+            # Set output
+            await Actor.set_value('OUTPUT', {
+                'prompt': prompt,
+                'code': ui_code,
+                'preview_image_url': screenshot_url,
                 'timestamp': datetime.now().isoformat()
             })
 

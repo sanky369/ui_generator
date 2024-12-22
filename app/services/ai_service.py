@@ -60,7 +60,7 @@ TECH_STACKS = {
 <script>
     // Add dark mode toggle functionality
     function toggleDarkMode() {
-        document.documentElement.setAttribute('data-bs-theme', 
+        document.documentElement.setAttribute('data-bs-theme',
             document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark'
         );
     }
@@ -106,10 +106,10 @@ class AIService:
     @staticmethod
     async def analyze_app_idea_with_claude(prompt: str, tech_stack: str = "react-tailwind") -> Tuple[str, str]:
         """Analyze app idea with Claude and generate UI code"""
-        
+
         # Get tech stack configuration
         stack_config = TECH_STACKS.get(tech_stack, TECH_STACKS["html-tailwind"])
-        
+
         # Create stack-specific system prompt
         if tech_stack == "react-tailwind":
             system_prompt = AIService._get_react_system_prompt()
@@ -117,7 +117,7 @@ class AIService:
             system_prompt = f"""You are an expert UI developer specializing in {stack_config['name']}.
                 Generate clean, modern, and responsive UI code based on the user's requirements.
                 Focus on creating a beautiful and intuitive user interface.
-                
+
                 Rules for HTML + Tailwind:
                 - Use semantic HTML5 elements
                 - Follow Tailwind CSS best practices
@@ -125,12 +125,13 @@ class AIService:
                 - Make the UI fully responsive
                 - Add proper ARIA attributes for accessibility
                 - Use the provided toggleDarkMode() function for dark mode
+                - Add relevant unsplash images wherever needed or else have a placeholder
                 - Include proper loading states and error handling"""
         elif tech_stack == "html-bootstrap":
             system_prompt = f"""You are an expert UI developer specializing in {stack_config['name']}.
                 Generate clean, modern, and responsive UI code based on the user's requirements.
                 Focus on creating a beautiful and intuitive user interface.
-                
+
                 Rules for Bootstrap:
                 - Use Bootstrap 5 components and utilities
                 - Follow Bootstrap best practices
@@ -143,7 +144,7 @@ class AIService:
             system_prompt = f"""You are an expert UI developer specializing in {stack_config['name']}.
                 Generate clean, modern, and responsive UI code based on the user's requirements.
                 Focus on creating a beautiful and intuitive user interface.
-                
+
                 Rules for Material UI:
                 - Use Material Design Web Components (MDC Web)
                 - Follow Material Design principles
@@ -155,7 +156,7 @@ class AIService:
 
         messages = [
             {
-                "role": "user", 
+                "role": "user",
                 "content": f"Create a UI for the following app idea: {prompt}"
             }
         ]
@@ -215,9 +216,9 @@ class AIService:
                 system=system_prompt,
                 messages=messages
             )
-            
+
             generated_code = response.content[0].text
-            
+
             # Extract the code from markdown if present
             if "```" in generated_code:
                 generated_code = generated_code.split("```")[1]
@@ -225,7 +226,7 @@ class AIService:
                     generated_code = generated_code[generated_code.index("\n")+1:]
                 if generated_code.endswith("```"):
                     generated_code = generated_code[:-3]
-            
+
             if tech_stack == "react-tailwind":
                 # Split the generated code into state declarations and JSX
                 code_parts = generated_code.split("return")
@@ -235,19 +236,22 @@ class AIService:
                     
                     # Clean up the code
                     state_code = AIService._clean_react_code(state_code)
+                    jsx_code = 'return ' + jsx_code
                     jsx_code = AIService._clean_react_code(jsx_code)
                     
                     # Insert the cleaned code into the template
                     preview_html = template.replace("// Generated state declarations will be inserted here", state_code)
-                    preview_html = preview_html.replace("{/* Generated UI code will be inserted here */}", jsx_code.rstrip(';'))
+                    preview_html = preview_html.replace("{/* Generated UI code will be inserted here */}", jsx_code)
                 else:
                     # If there's no return statement, assume it's all JSX
                     cleaned_code = AIService._clean_react_code(generated_code.strip())
-                    preview_html = template.replace("{/* Generated UI code will be inserted here */}", cleaned_code.rstrip(';'))
+                    if not cleaned_code.startswith('return'):
+                        cleaned_code = 'return (' + cleaned_code + ')'
+                    preview_html = template.replace("{/* Generated UI code will be inserted here */}", cleaned_code)
             else:
                 # Insert the generated HTML code into the div container
                 preview_html = template.replace("<!-- Your HTML code will be inserted here -->", generated_code.strip())
-            
+
             return preview_html, generated_code
 
         except Exception as e:
@@ -257,27 +261,67 @@ class AIService:
     @staticmethod
     def _clean_react_code(code: str) -> str:
         """Clean and fix common React code issues"""
+        # Remove any explanatory text before actual code
+        code_start = code.find('const')
+        if code_start != -1:
+            code = code[code_start:]
+
+        # Remove any text that's not part of the code
+        lines = code.split('\n')
+        cleaned_lines = []
+        in_code_block = False
+        code_starters = ('const ', 'let ', 'return ', 'function ', 'if ', 'for ', '{')
+
+        for line in lines:
+            # Skip empty lines
+            if not line.strip():
+                continue
+
+            # Check if line starts with common code patterns
+            if any(line.strip().startswith(starter) for starter in code_starters):
+                in_code_block = True
+            # Check if line is a closing brace or contains JSX
+            elif line.strip().startswith(('<', '}')) or '/>' in line or '>' in line:
+                in_code_block = True
+            # Skip lines that don't look like code
+            if not in_code_block or not line.strip():
+                continue
+            cleaned_lines.append(line.rstrip())
+
+        code = '\n'.join(cleaned_lines)
+
         # Fix useState syntax
         code = re.sub(r'React\.useState', 'useState', code)
         code = re.sub(r'React:\s*"useState"', 'useState', code)
         code = re.sub(r'React:\s*useState', 'useState', code)
-        
+
         # Fix string numbers in objects
         code = re.sub(r':\s*"(\d+(?:\.\d+)?)"', r': \1', code)
-        
+
         # Fix string numbers with colons
         code = re.sub(r'"(\d+):\s*(\d+)"', r'\1.\2', code)
-        
+
         # Remove any extra components
         code = re.sub(r'let \w+Component\s*=\s*\(\)\s*=>\s*{', '', code)
         code = re.sub(r'const \w+Component\s*=\s*\(\)\s*=>\s*{', '', code)
+
+        # Clean up code
+        code = code.strip()
         
-        # Remove trailing whitespace and add proper semicolons
-        code = code.strip().rstrip(';').rstrip() + ';'
+        # Fix return statement
+        if code.startswith('return'):
+            # Ensure return statement has parentheses
+            if not code.startswith('return ('):
+                code = re.sub(r'^return\s*', 'return (', code)
+                if code.endswith(';'):
+                    code = code[:-1] + ');'
+                else:
+                    code += ')'
         
-        # Remove any empty lines at the end
-        code = re.sub(r'\s+$', '', code)
-        
+        # Only add semicolon if needed
+        if code and not any(code.rstrip().endswith(x) for x in [';', '}', '>', '/>']):
+            code += ';'
+
         return code
 
     @staticmethod
@@ -350,7 +394,7 @@ return (
             theme: {
                 extend: {}
             }
-        };
+        }
     </script>
 </head>
 <body>
@@ -359,38 +403,40 @@ return (
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script type="text/babel">
-        const { useState, useEffect } = React;
-        const rootElement = document.getElementById('root');
-        const root = ReactDOM.createRoot(rootElement);
-        
-        function App() {
-            const [darkMode, setDarkMode] = useState(
-                window.matchMedia('(prefers-color-scheme: dark)').matches
-            );
-            
-            useEffect(() => {
-                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-                const handleChange = (e) => setDarkMode(e.matches);
-                mediaQuery.addEventListener('change', handleChange);
-                return () => mediaQuery.removeEventListener('change', handleChange);
-            }, []);
-            
-            // Generated state declarations will be inserted here
-            
-            return (
-                <div className={darkMode ? 'dark' : ''}>
-                    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-200">
-                        {/* Generated UI code will be inserted here */}
+        (() => {
+            const { useState, useEffect } = React;
+            const rootElement = document.getElementById('root');
+            const root = ReactDOM.createRoot(rootElement);
+
+            function App() {
+                const [darkMode, setDarkMode] = useState(
+                    window.matchMedia('(prefers-color-scheme: dark)').matches
+                );
+
+                useEffect(() => {
+                    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                    const handleChange = (e) => setDarkMode(e.matches);
+                    mediaQuery.addEventListener('change', handleChange);
+                    return () => mediaQuery.removeEventListener('change', handleChange);
+                }, []);
+
+                // Generated state declarations will be inserted here
+
+                return (
+                    <div className={darkMode ? 'dark' : ''}>
+                        <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-200">
+                            {/* Generated UI code will be inserted here */}
+                        </div>
                     </div>
-                </div>
+                );
+            }
+
+            root.render(
+                <React.StrictMode>
+                    <App />
+                </React.StrictMode>
             );
-        }
-        
-        root.render(
-            <React.StrictMode>
-                <App />
-            </React.StrictMode>
-        );
+        })();
     </script>
 </body>
 </html>'''

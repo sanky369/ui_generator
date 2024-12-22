@@ -48,11 +48,13 @@
                 <!-- Tech Stack Selector -->
                 <div>
                     <label for="techStack" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Choose Tech Stack</label>
-                    <select id="techStack" class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="react-tailwind">React + Tailwind CSS</option>
+                    <select id="techStack" class="block w-full p-2 border rounded-md">
                         <option value="html-tailwind">HTML + Tailwind CSS</option>
                         <option value="html-bootstrap">HTML + Bootstrap 5</option>
-                        <option value="html-material">HTML + Material UI</option>
+                        <option value="html-material">HTML + Material Design</option>
+                        <!-- Temporarily hidden until Babel issues are fixed
+                        <option value="react-tailwind">React + Tailwind CSS</option>
+                        -->
                     </select>
                 </div>
 
@@ -270,46 +272,44 @@
                 
                 iframe.contentDocument.head.appendChild(html2canvasScript);
                 
-                // Wait for script to load and then capture
-                html2canvasScript.onload = async () => {
-                    try {
-                        // Add necessary styles to ensure proper capture
-                        const styleEl = document.createElement('style');
-                        styleEl.textContent = `
-                            body { 
-                                width: 100% !important;
-                                height: 100% !important;
-                                margin: 0 !important;
-                                padding: 0 !important;
-                            }
-                        `;
-                        iframe.contentDocument.head.appendChild(styleEl);
-                        
-                        // Execute html2canvas inside iframe context
-                        const script = document.createElement('script');
-                        script.textContent = `
-                            html2canvas(document.body, {
-                                allowTaint: true,
-                                useCORS: true,
-                                scale: 2,
-                                backgroundColor: null,
-                                logging: false,
-                                width: window.innerWidth,
-                                height: window.innerHeight
-                            }).then(canvas => {
-                                const image = canvas.toDataURL('image/png');
-                                window.parent.postMessage({ type: 'screenshot', image }, '*');
-                            });
-                        `;
-                        iframe.contentDocument.body.appendChild(script);
-                    } catch (error) {
-                        console.error('Error in capture:', error);
-                        alert('Failed to capture image');
-                    }
+                // Wait for script to load
+                await new Promise((resolve) => {
+                    html2canvasScript.onload = resolve;
+                });
+                
+                // Get the root element to capture
+                const element = iframe.contentDocument.documentElement;
+                
+                // Set canvas size to full document height
+                const options = {
+                    height: Math.max(
+                        element.scrollHeight,
+                        element.offsetHeight,
+                        element.clientHeight
+                    ),
+                    windowHeight: Math.max(
+                        element.scrollHeight,
+                        element.offsetHeight,
+                        element.clientHeight
+                    ),
+                    scrollY: 0,  // Start from top
+                    scrollX: 0,  // Start from left
+                    scale: 1,    // Maintain quality
+                    useCORS: true, // Handle cross-origin images
+                    logging: true  // Help with debugging
                 };
+                
+                // Capture the screenshot
+                const canvas = await iframe.contentWindow.html2canvas(element, options);
+                
+                // Convert to image and download
+                const image = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = image;
+                link.download = 'ui-preview.png';
+                link.click();
             } catch (error) {
-                console.error('Error setting up capture:', error);
-                alert('Failed to set up image capture');
+                console.error('Error taking screenshot:', error);
             }
         });
 

@@ -1,4 +1,7 @@
+apify>=1.4.0
 apify-client>=1.4.0
 anthropic>=0.7.0
 aiohttp>=3.9.0
 python-dotenv>=1.0.0
+playwright==1.42.0
+playwright-stealth==1.0.5
